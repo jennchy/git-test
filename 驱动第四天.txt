@@ -1,0 +1,69 @@
+【1】设备树
+    描述驱动  platform_driver
+	硬件信息  platform_device
+	
+	如果内核中没有使用设备树，硬件信息添加到平台代码中。
+	比如：cortex_a8(samsung)
+	/linux-2.6.39/arch/arm/mach-s5pc100/mach-smdkc100.c
+	
+	make uImage
+	
+	
+	比如cortex_a9(linux-3.0)
+	arch/arm/mach-exynos4/mach-armlex4210.c 
+	 
+	
+	如果内核中使用设备树，硬件信息添加到设备树中
+	linux3.14
+   设备树： 
+       功能：描述硬件信息
+       什么硬件可以添加到设备树？
+       和soc直连，需要将硬件信息添加到设备树中
+   
+    arch/arm/boot/dts/exynos4412-fs4412.dts
+	树只有一个根节点，可以有多个子节点
+	根节点：/  
+	
+	属性             参数1：表示厂商             参数2：设备
+	compatible = "insignal,origen4412", "samsung,exynos4412";
+	 22     memory {
+     23         reg = <0x40000000 0x40000000>;
+     24     };
+	
+	reg:表示内存资源：参数1：起始地址    参数2：偏移的大小
+	如果有多个led的硬件信息  reg  = <参数1  参数2  参数3  参数4>;
+	     fs4412-led  {
+		 
+		    compatible  = "fs4412,led";
+		 
+		    reg  = <0x11000c40 0x4  0x11000c20  0x4   0x114001e0  0x4 >;
+			  
+		 
+		 };
+		 注意：每个子节点必须有compatible属性信息。
+		 如果内核中没有设备树，硬件和驱动程序通过name匹配的
+		 如果内核中有设备树，通过compatible 匹配的，但是虽然name不重要，必须填充
+		 
+		 当设备树加载之后，内核会自动将设备树转化成platform_device 结构体
+		 --------------------\
+		 --------------------/
+		 
+		 struct  resource   fs4412_resource[]   = {
+		 
+		 
+		 
+		 };
+		struct platform_device   fs4412_device  = {
+		
+		.name  = ,
+		.resource  = fs4412_resource,
+		
+		
+		
+		};
+	
+     	
+	 
+	
+	
+	

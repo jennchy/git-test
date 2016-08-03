@@ -1,0 +1,291 @@
+【1】模块
+1.1 模块和应用程序的区别？
+
+                  模块                   应用程序
+入口函数：     内核提供的入口函数         main函数
+运行空间：     内核空间                   用户空间
+调用函数：     内核提供的函数             c库或者系统调用
+资源释放：     手动释放                   自动释放或者手动释放
+
+1.2 什么程序可以编译生成模块？
+   在linux系统下，有三大设备驱动，分别是：字符设备，块设备，网络设备驱动
+   块设备：emmc，nand flash，nor flash，sd：按固定的大小访问，linux系统block  512byte     b
+   网络设备：网卡  ：有自己的协议，
+   字符设备驱动：：led，beep，key，adc，mpu6050,usb,lcd,鼠标，键盘，声卡，串口，红外，温度传感器
+                   一般按字节的形式访问，顺序访问   c
+				   
+				   
+1.3  如何编写模块？
+
+   如何想在内核中编译模块，必须在make  menuconfig  中配置<M>驱动程序才可以编译生
+   成模块； make   modules  .o--->.ko
+
+   1.3.1 模块分为内部模块和外部模块？
+        内部模块：在内核源码目录内编译生成的模块叫内部模块
+        外部模块：在内核源码目录外编译生成的模块叫外部模块
+
+   1.3.2 在ubuntu的系统有两个内核？
+      ubuntu使用的内核：编译生成的模块是x86的格式，gcc
+      开发板使用的内核：编译生成的模块是arm格式  arm-none-linux-gnueabi-gcc
+	  
+  1.3.3  编译模块的条件？
+  
+     1.必须是已经配置过的内核
+	    
+     2.必须是已经编译过的内核
+	 
+  1.3.4 如何编写模块？
+  
+     1.在内核的源码目录外编译
+	 2.采用模块化编程
+	 
+    模块入口函数
+	   申请资源
+258 /**
+259  * module_init() - driver initialization entry point
+260  * @x: function to be run at kernel boot time or module insertion
+261  * 
+262  * module_init() will either be called during do_initcalls() (if
+263  * builtin) or at module insertion time (if a module).  There can only
+264  * be one per module.
+265  */
+266 #define module_init(x)  __initcall(x);
+   驱动的入口函数
+   
+   函数的返回值必须int类型，参数必须是void类型
+   135 typedef int (*initcall_t)(void);                                                                                                 
+
+
+
+    模块的出口函数
+      释放资源
+	  /**
+269  * module_exit() - driver exit entry point
+270  * @x: function to be run when driver is removed
+271  * 
+272  * module_exit() will wrap the driver clean-up code
+273  * with cleanup_module() when used with rmmod when
+274  * the driver is a module.  If the driver is statically
+275  * compiled into the kernel, module_exit() has no effect.
+276  * There can only be one per module.
+277  */
+  模块的出口函数
+  136 typedef void (*exitcall_t)(void);
+     返回值必须为void类型，参数必须为void类型
+	 
+	 
+	 
+  编写入口函数和出口函数
+  int  hello_init(void)
+{
+   资源的申请
+
+}  
+  void  hello_exit(void)
+  {
+     资源的释放
+  
+  }
+  
+  module_init(hello_init);
+  module_exit(hello_exit);
+  
+  
+  
+	  
+  1.3.5 查看内核中的函数或者变量
+	  
+      make tags
+	  vi  -t    module_init
+	  
+【2】模块的命令
+   
+  1.安装模块
+   insmod    文件的名字
+  1.卸载模块
+  rmmod    模块名  
+  
+  查看内核后台的打印信息
+   dmesg
+   清空内核后台的打印信息
+   dmesg  -c
+   
+ 【3】字符设备驱动
+     
+	 应用程序是通过设备号找驱动程序，在linux系统设备号是唯一的。
+     内核定义设备号
+	 /linux-3.14-fs4412/Documentation$ vi  devices.txt
+	 通过设备号可以找到对应的驱动程序，驱动可以绑定设备号
+	 
+   3.1  设备号 是32bit的无符号整数
+     其中高12bit表示的是主设备号，低20bit表示的是次设备号
+	 主设备号：表示哪一类设备  次设备号：表示这一类设备的第几个设备
+
+   3.2 申请设备号
+     静态申请和动态申请
+    
+	静态申请：
+	   int  marjor  = 250;
+	   int  minor  =  0;
+	   
+	   int  devno  = marjor <<20|minor;
+	   
+	 内核提供的申请设备号函数  
+	 dev_t  devno   =MKDEV(marjor,minor);
+       
+	   
+   3.3 注册字符设备号
+       187 /**
+188  * register_chrdev_region() - register a range of device numbers
+189  * @from: the first in the desired range of device numbers; must include
+190  *        the major number.
+191  * @count: the number of consecutive device numbers required
+192  * @name: the name of the device or driver.
+193  *
+194  * Return value is zero on success, a negative error code on failure.
+195  */
+196 int register_chrdev_region(dev_t from, unsigned count, const char *name) 
+    参数解释：
+	dev_t  from:设备号
+    unsigned  count:申请设备号的个数
+    const char  * name:	设备或者驱动的名字
+	
+	
+    返回值：成功返回0，失败返回错误码
+	
+	vi   -t   EINVAL
+	int  ret；
+	ret  = register_chrdev_region(devno,1,"hello");
+	if(0  != ret)
+	{
+	    return   -EBUSY;
+		
+	
+	}
+	
+   3.4  释放设备号
+    298 /**
+299  * unregister_chrdev_region() - return a range of device numbers
+300  * @from: the first in the range of numbers to unregister
+301  * @count: the number of device numbers to unregister
+302  *
+303  * This function will unregister a range of @count device numbers,
+304  * starting with @from.  The caller should normally be the one who
+305  * allocated those numbers in the first place...
+306  */
+307 void unregister_chrdev_region(dev_t from, unsigned count)    
+	参数：dev_t from  设备号
+	      unsigned  count ：设备号的个数
+  		  
+	
+	   unregister_chrdev_region(devno,1);
+	
+查看系统中已经注册的设备号
+  cat   /proc/devices 
+  
+  3.5  初始化cdev结构体
+   555  * @fops: the file_operations for this device
+556  *
+557  * Initializes @cdev, remembering @fops, making it ready to add to the
+558  * system with cdev_add().
+559  */
+560 void cdev_init(struct cdev *cdev, const struct file_operations *fops)
+     参数：struct  cdev *cdev:cdev结构体
+	       struct  file_operations  *  ops：操作函数的接口
+
+    464 /**
+465  * cdev_add() - add a char device to the system
+466  * @p: the cdev structure for the device
+467  * @dev: the first device number for which this device is responsible
+468  * @count: the number of consecutive minor numbers corresponding to this
+469  *         device
+470  *
+471  * cdev_add() adds the device represented by @p to the system, making it
+472  * live immediately.  A negative error code is returned on failure.
+473  */
+474 int cdev_add(struct cdev *p, dev_t dev, unsigned count)  
+   参数： struct  cdev  *  p:字符设备
+          dev_t  devno;设备号 
+		  unsigned   count ：次设备号的个数
+
+添加字符设备到系统中
+
+ 删除cdev结构体
+496 /**
+497  * cdev_del() - remove a cdev from the system
+498  * @p: the cdev structure to be removed
+499  *                                                                                                                               
+500  * cdev_del() removes @p from the system, possibly freeing the structure
+501  * itself.
+502  */
+503 void cdev_del(struct cdev *p)
+504 {
+505     cdev_unmap(p->dev, p->count);
+506     kobject_put(&p->kobj);
+507 }
+
+
+
+ 
+
+	
+	
+	
+
+
+		   
+
+
+		   
+		   
+		   
+  
+	
+	 
+	 
+    	
+
+   
+    
+    
+	
+	   
+	   
+	   
+	   
+
+	   
+           	 
+     	 
+	 
+	 
+	 
+	 
+     	 
+     	 
+  
+   
+   
+     
+	  
+	  
+	  
+	   
+    
+	 
+	 
+	    
+		
+	   
+	   
+	 
+	  
+   
+   
+				   
+				   
+   
+
+
+ 
+   

@@ -1,0 +1,96 @@
+【1】jiffies
+   系统从开机启动到现在的节拍数
+   节拍数：定时器中断产生的次数
+     t=1/f
+	 
+ubuntu下hz定义在/lib/modules/$(shell  uname  -r)/build/.config
+   CONFIG_HZ=250
+ 
+ linux-3.14/.config 
+     427 CONFIG_HZ=200
+	 
+BC      kernel/timeconst.h
+/bin/sh: 1: bc: not found
+make[1]: *** [kernel/timeconst.h] Error 127
+make: *** [kernel] Error 2
+root@iZ11ipz9q31Z:~/fs4412/kernel/linux-3.14-fs4412# sudo   apt-get install  bc
+
+【2】ADC驱动
+    1.在设备树中添加ADC的硬件信息
+	
+	  fs4412-adc  {
+	  
+	     compatible  =“fs4412,adc”；
+         reg   = <0x126c0000  0x20>;
+         interrupt-parent  = <&combiner>;
+         interrupts = <10 3>;		 
+	  };
+	  
+	  
+	2.编写adc驱动
+ADCCON   0X126C0000     1<<16 |1<<14|0XFF <<6|1<<0
+ADCDAT   0X126C000C     &0xfff
+ADCINT   0X126C0018     0
+ADCMUX   0X126C001C     [3-0]   0x3
+  
+    platform_get_resource
+ 56 /**
+  57  * platform_get_resource - get a resource for a device
+  58  * @dev: platform device
+  59  * @type: resource type
+  60  * @num: resource index
+  61  */
+  62 struct resource *platform_get_resource(struct platform_device *dev,                                                             
+  63                        unsigned int type, unsigned int num)
+  
+     从dev中获取第num个为type的资源
+	  struct  resource  *res_mem;
+	  struct  resource * res_irq;
+	  void  __iomem  * adcbase;
+	  
+     read:
+	     writel(0x3,adcbase+0x1c);
+		 writel(1<<16|1<<14|0xff <<6|1<<0,adcbase+0x00);
+		 等中断
+		 wait_event_i();
+		 data  =readl(adcbase+0x0c)&0xfff; 
+		 copy_to_user(buf,&data,size);
+         flag  =;	
+        
+        		
+     	 
+	 4.中断处理函数
+       irqreturn_t  adc_handler（int  irqnum,void  *dev）
+       {
+	      
+		  writel(0x0,adcbase+18);
+		  唤醒
+		  flag  =;
+		  wake_up_();
+	       return  IRQ_HANDLED;
+	   
+	   }	   
+    probe(struct  platform_device  *  pdev)
+	1.register_chrdev
+	2.获取硬件资源
+	  res_mem  = platform_get_resource(pdev,IORESOURCE_MEM,0);
+	  res_irq  = platform_get_resource(pdev,IORESOURCE_IRQ,0);
+    3.映射
+	 adcbase  =  ioremap(res_mem->start,res_mem->end  - res_mem->start);
+	 ret  = request_irq(res_irq->start,adc_handler,IRQF_DISABLED,“adc”,NULL); 
+      	
+	  
+	    
+ 	
+	 
+	 
+     
+    	 
+	  
+	  
+	
+	 
+       
+   
+   
+   

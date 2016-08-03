@@ -1,0 +1,93 @@
+【1】输入子系统
+   三层：事件处理层，核心层，设备驱动层
+   
+   事件处理层：为应用程序提供接口
+   核心层：向上为事件处理层提供接口，向下为设备驱动层提供接口
+   设备驱动层：操作硬件
+   
+  
+设备驱动层：
+  input_dev
+如何注册input_dev
+2067 int input_register_device(struct input_dev *dev)
+     list_for_each_entry(handler, &input_handler_list, node) 
+2138         input_attach_handler(dev, handler);  对链表中每个条目调用这个函数  
+                 987     id = input_match_device(handler, dev);                                                                                     
+ 988     if (!id)
+ 989         return -ENODEV;
+ 990 
+ 991     error = handler->connect(handler, dev, id);
+ 
+ 事件处理层： input_handler  evdev.c  
+ 
+ 
+ 注册：input_register_handler(&evdev_handler);
+ 
+
+如何读取按键的值？
+app:
+open("/dev/input/*");
+read(fd,key);
+------------------------------------------------------------
+evdev.c  
+  1065 static const struct file_operations evdev_fops = {
+1066     .owner      = THIS_MODULE,
+1067     .read       = evdev_read,                                                                                                  
+1068     .write      = evdev_write,
+1069     .poll       = evdev_poll,
+1070     .open       = evdev_open,
+1071     .release    = evdev_releas 
+evdev_read:
+    
+input_event_to_user(buffer + read, &event))
+    error = wait_event_interruptible(evdev->wait,                                                                      
+ 525                     client->packet_head != client->tail ||
+ 526                     !evdev->exist || client->revoked);
+ 
+
+谁来唤醒她？
+161 static void evdev_pass_values(struct evdev_client *client,
+ 162             const struct input_value *vals, unsigned int count,                                                                
+ 163             ktime_t mono, ktime_t real)
+                wake_up_interruptible(&evdev->wait);
+  
+ evdev_pass_values被谁调用？
+   197 static void evdev_events(struct input_handle *handle,
+ 198              const struct input_value *vals, unsigned int count) 
+      evdev_pass_values
+	  
+evdev_events被谁调用：
+  static void evdev_event(struct input_handle *handle,
+ 225             unsigned int type, unsigned int code, int value)
+     evdev_events
+	 
+evdev_event被谁调用：
+   	 猜测应该是设备驱动层中断处理函数
+	 
+参考代码：
+ input/keyboard/gpio-keys.c 
+  
+377 static void gpio_keys_irq_timer(unsigned long _data)
+    input_event(input, EV_KEY, bdata->button->code, 0);
+386         input_sync(input);
+
+ input_event
+     
+ input_handle_event(dev, type, code, value);  
+      input_pass_values(dev, dev->vals, dev->num_vals);
+	       input_to_handler(handle, vals, count);
+		         handler->event(handle, v->type, v->code, v->value);
+				 
+				 
+如何编写按键驱动？
+ 1.分配空间
+ 2.设置结构体
+ 3.硬件相关的操作
+ 4.注册input_dev结构体
+ 
+ 
+	 
+	 
+   	  
+	  
+	

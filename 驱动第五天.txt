@@ -1,0 +1,298 @@
+【1】I/O模型
+   阻塞：
+     基于等待队列实现
+	 1.定义等待队列头
+	   wait_queue_head_t  hello_readq;
+	 2.初始化等待队列头
+        init_waitqueue_head(&hello_readq);
+     3.等待事件
+        wait_event(readq,condition);不可中断的操作
+        wait_event_interruptible();可以被信号唤醒的操作
+        wait_event_timeout();设置超时的时间
+        wait_event_interruptible_timeout();可以被信号唤醒，设备超时的时间
+	 4.唤醒队列
+	    wake_up
+		wake_up_interruptible(&hello_readq);
+   非阻塞：
+      app:  open("hello",O_RDWR|O_NONEBLOCK);
+	  
+	  驱动程序：
+	      open (struct  inode  *inode,struct  file  * file) 
+		    if(file->f_flags  & O_NONBLOCK)
+			{
+			  
+			     
+			}
+			else
+			   阻塞
+	       
+   多路复用：
+   
+   http://blog.chinaunix.net/uid-26851094-id-3175940.html
+        app：select
+          #include <sys/select.h>
+
+       /* According to earlier standards */
+       #include <sys/time.h>
+       #include <sys/types.h>
+       #include <unistd.h>
+
+       int select(int nfds, fd_set *readfds, fd_set *writefds,
+                  fd_set *exceptfds, struct timeval *timeout);
+		 nfds: is the highest-numbered file descriptor in any of the three sets, plus 1.
+		 
+	   1.清空表
+       2.将read和write加入到表中 
+       3.调用select函数
+       4.select函数返回的是一个新的集合，集合里面保存的是可操作的文件描述符 
+       5.判断集合中可操作的文件描述符
+	   
+	   fd_set  readfd;
+	   fd_set  writefd;
+	
+	   
+	   while(1)
+	   {
+	   
+	         FD_ZERO(&readfd);
+	         FD_ZERO(&writefd);
+	         FD_SET(fd,&readfd);
+	         FD_SET(fd,&writefd);
+			 select(fd +1,&readfd,&writefd,NULL,NULL)；
+			 
+			
+			
+	   }
+       void FD_CLR(int fd, fd_set *set);
+       int  FD_ISSET(int fd, fd_set *set);
+	   判断描述符fd是否在给定的描述符集fdset中，通常配合select函数使用，由于select函数成功返回时会将未准备好的描述符位清零。通常我们使用FD_ISSET是为了检查在select函数返回后，某个描述符是否准备好，以便进行接下来的处理操作。
+当描述符fd在描述符集fdset中返回非零值，否则，返回零。
+       void FD_SET(int fd, fd_set *set);
+       void FD_ZERO(fd_set *set);
+驱动：
+   file_operations   
+     poll();
+	   
+    	   
+   异步通知
+   一旦设备就绪，驱动程序会给应用发送SIGIO信号，应用程序需要signal。
+   
+  应用程序如何实现异步通知？
+  
+ fcntl  
+   1.设置进程的id,接收SIGIO
+   2.设置O_FASYNC ，F_SETFL
+   
+   fcntl(fd,F_SETOWN,getpid());
+   flags  = fcntl(fd,F_GETFL);
+   fcntl(fd,F_SETFL,flags|O_FASYNC);
+   
+   signal(SIGIO,);
+   只要应用程序O_FASYNC调用驱动程序fasync的函数
+   
+   
+ 【2】中断
+    注册中断
+	  127 static inline int __must_check
+request_irq(unsigned int irq, irq_handler_t handler, unsigned long flags,                                                       
+         const char *name, void *dev)
+		 
+	 unsigned  int  irq:中断号
+	   如果内核中没有设备树，中断号定义在平台代码中
+	   中断号分为内部中断号和外部中断号
+	   
+	   内部中断号：
+	   
+	   linux-3.0.1/arch/arm/mach-exynos4/include/mach# vi irqs.h 
+	   
+	   外部中断号：
+	   linux-3.0.1/arch/arm/plat-s5p/include/plat# vi irqs.h 
+	   
+	   如果内核中使用设备树，中断号定义在设备树里。
+******************************华丽的分割线**********************************************************************	   
+	  
+如何在设备树中添加中断号？
+ 参考文档：
+ linux-3.14-fs4412/Documentation/devicetree/bindings/interrupt-controller# vi interrupts.txt 
+ 13   Example:
+ 14     interrupt-parent = <&intc1>;  
+       参考4412手册  p748，猜测gpx1_1 和gpx1_2 父节点是gic 
+ 15     interrupts = <5 0>, <6 0>;？
+       由exynos4x12-pinctl.dtsi 和exynos4.dtsi  
+      得知：gpx1_1和gpx1_2 的父节点是gpx1
+	  
+gpx1：在exynos4x12-pinctl.dtsi定义：
+    gpx1: gpx1 {
+
+576             interrupt-parent = <&gic>;
+577             interrupts = <0 24 0>, <0 25 0>, <0 26 0>, <0 27 0>,
+578                      <0 28 0>, <0 29 0>, <0 30 0>, <0 31 0>;    
+	   
+	   interrupts = <0 24 0>, <0 25 0>, <0 26 0>, <0 27 0>,
+578                      <0 28 0>, <0 29 0>, <0 30 0>, <0 31 0>;
+问：131,132两行什么意思？
+答：参考文档：
+  linux-3.14-fs4412/Documentation/devicetree/bindings/arm# vi gic.txt 
+  
+  interrupts 有三个参数：
+  参数1：  The 1st cell is the interrupt type; 0 for SPI interrupts, 1 for PPI  
+    中断类型
+     0：共享中断    1：私有中断
+  参数2：
+    26   The 2nd cell contains the interrupt number for the interrupt type.
+ 27   SPI interrupts are in the range [0-987].  PPI interrupts are in the
+ 28   range [0-15].  
+     中断类型对应的中断号：
+
+  参数3：触发方式：
+    30   The 3rd cell is the flags, encoded as follows:
+ 31     bits[3:0] trigger type and level flags.
+ 32         1 = low-to-high edge triggered
+               上升沿触发方式
+ 33         2 = high-to-low edge triggered
+               下降沿触发方式
+ 34         4 = active high level-sensitive
+                高电平触发方式 
+ 35         8 = active low level-sensitive  
+	            低电平触发方式
+				
+				
+				fs4412-key {
+				
+				 compatible  = ;
+				 interrupt-parent = <&gpx1>;
+				 interrupts= <1 2>,<2 2>;
+				
+				};
+				
+				------------------>
+				platform_device  
+				   resource  
+				      .start  = 中断号 ，
+					  .end    = 中断号
+					  .flags  = 中断资源
+	irq_handler_t handler:中断的处理函数
+	typedef irqreturn_t (*irq_handler_t)(int, void *);  
+   
+  irqreturn_t  key_handler(int  irqnum,void  * dev)
+{
+
+
+    return  IRQ_HANDLED;
+}  
+   
+   unsigned long flags:中断的触发方式,中断的标志
+   29 #define IRQF_TRIGGER_NONE   0x00000000
+ 30 #define IRQF_TRIGGER_RISING 0x00000001
+ 31 #define IRQF_TRIGGER_FALLING    0x00000002
+ 32 #define IRQF_TRIGGER_HIGH   0x00000004
+ 33 #define IRQF_TRIGGER_LOW    0x00000008
+ 
+ IRQF_DISABLED - keep irqs disabled when calling the action handler.
+ 43  *                 DEPRECATED. This flag is a NOOP and scheduled to be removed
+ 44  * IRQF_SHARED - allow sharing the irq among several devices
+  	
+	const char *name, 设备的名字
+	
+	void *dev：表示设备（为共享中断服务）  NULL
+	
+	返回值：成功返回0，失败返回错误码
+	
+	
+				
+释放中断：
+   extern void free_irq(unsigned int, void *);	 
+   
+【3】编写按键驱动？
+  1.在设备树中添加key的硬件信息
+   vi  arch/arm/boot/dts/exynos4412-fs4412.dts 
+   fs4412-key  {
+    
+	   compatible = "fs4412,key";
+	   interrupt-parent = <&gpx1>;
+	   interrupts = <1 2>,<2 2>;
+   
+   };   
+   make dtbs
+   cp  arch/arm/boot/dts/exynos4412-fs4412.dtb  /tftpboot
+   
+  2.编写驱动
+   1.模块的声明
+    MODULE_LICENSE("GPL");
+	struct  platform_device  * mydev;
+	int   key =0;
+	
+	read:
+	  等中断
+	  wait_event_interruptible 
+	  copy_to_user(buf,&key);
+	  
+	  
+	irqreturn_t    key_handler(int  irqnum,void  * dev)
+	{
+	    if(mydev->resource[0].start  ==  irqnum)
+		{
+		        key  = 1;
+				
+		
+		}
+		 if(mydev->resource[1].start  ==  irqnum)
+		{
+		        key  = 2;
+				
+		
+		}
+		flag   =1;
+		wake_up_interruptible
+	     return IRQ_HANDLED;
+	
+	}
+	probe(struct  platform_device  *  pdev):
+	 mydev  =  pdev;
+     1.申请设备号
+     2.注册设备号
+     3.初始化cdev
+    4.将cdev添加到系统中
+     register_chrdev	
+	5.操作硬件
+	   注册中断 
+	    ret  = request_irq(pdev->resource[0].start，key_handler,IRQF_TRIGGER_FALLING|IRQF_DISABLED,"key1",NULL);
+        ret  = request_irq(pdev->resource[1].start，key_handler,IRQF_TRIGGER_FALLING|IRQF_DISABLED,"key2",NULL);		
+	
+	remove:
+	free_irq(pdev->resource[0].start,NULL);
+    free_irq(pdev->resource[1].start,NULL);	
+	unregister_chrdev
+	  
+	
+	struct of_device_id  fs4412_table []={
+	
+	{
+	.compatible  = "fs4412,key";
+	},
+	
+	};
+	struct  platform_driver   key_driver  = {
+	
+	    .driver  = {
+		    .name  =  "fs4412-key",
+			.of_match_table  = fs4412_table, 
+		
+		},
+	
+	.probe  =  key_probe,
+	.remove  = key_remove,
+	
+	};
+   2.加载函数
+       注册platform_driver
+   3.卸载函数   
+       释放platform_driver
+   4.关联
+    module_init
+    module_exit	
+	  
+	 
+  
+   
+   

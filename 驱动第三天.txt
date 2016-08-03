@@ -1,0 +1,58 @@
+【1】I/O操作
+     readl
+     writel
+ 
+【2】 用户空间和内核空间读写数据
+    内存之间的拷贝（用户空间和内核空间）
+	
+    copy_to_user       memcpy
+	448 static inline unsigned long __must_check copy_to_user(void __user *to, const void *from, unsigned long n)
+	__must_check :必须检查函数的返回值
+	void  __user  *to:  __user  修饰的都是用户空间    用户空间
+	void  *from:  内核空间
+	long  n:拷贝数据的大小
+	
+    copy_from_user	
+	
+439 static inline unsigned long __must_check copy_from_user(void *to, const void __user *from, unsigned long n)                      
+    参数：void  * to：内核空间
+	      void  __user  *from:用户空间
+		  long  n:拷贝数据的大小
+		  
+		  
+	返回值：成功返回0，失败返回未拷贝的字节数
+【3】发送命令
+   ioctl（int fd,int cmd,char  * argp）；
+
+cmd:32bit的无符号整数
+
+设备类型：表示哪一类设备  使用一个字符表示  8bit
+序列号：表示这一类设备的第几个命令  默认从0开始    8bit 
+方向：  r  w   rw
+尺寸：数据的大小
+
+内核已经定义了宏：（命令）
+6 #define   _IO(type,nr)    没有数据传递使用的命令      
+type:设备类型  'q'
+nr:序列号  表示这一类设备的第一个命令
+有数据传递使用的命令                                                                  
+ 77 #define _IOR(type,nr,size) 
+ size：数据的类型
+ 
+ 78 #define _IOW(type,nr,size)  
+ 79 #define _IOWR(type,nr,size) 
+ 
+ 
+ ioctl(fd,_IO('a',0));
+ ioctl(fd,_IO('a',1));
+ 
+ 
+  
+   
+	
+	
+
+	
+
+    
+   

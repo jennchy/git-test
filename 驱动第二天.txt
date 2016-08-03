@@ -1,0 +1,88 @@
+【1】自动分配设备号
+ 
+221 /**
+222  * alloc_chrdev_region() - register a range of char device numbers
+223  * @dev: output parameter for first assigned number
+224  * @baseminor: first of the requested range of minor numbers
+225  * @count: the number of minor numbers required
+226  * @name: the name of the associated device or driver
+227  *
+228  * Allocates a range of char device numbers.  The major number will be
+229  * chosen dynamically, and returned (along with the first minor number)
+230  * in @dev.  Returns zero or a negative error code.
+231  */
+232 int alloc_chrdev_region(dev_t *dev, unsigned baseminor, unsigned count,                                                          
+233             const char *name)
+    参数：dev_t  *dev:  申请的设备号
+	      unsigned  baseminor:申请的第一个次设备号
+		  unsigned  count:  申请次设备号的个数
+		  const char  *name:设备或者驱动的名字
+		  
+		  
+		  
+		  
+		  
+   lsmod  查看系统中已经加载的模块
+   
+ 【2】自动创建设备节点
+    sysfs:内核和用户交互的统一接口
+	root@iZ11ipz9q31Z:~# mount
+/dev/vda1 on / type ext4 (rw,errors=remount-ro)
+proc on /proc type proc (rw,noexec,nosuid,nodev)
+sysfs on /sys type sysfs (rw,noexec,nosuid,nodev)
+
+      mdev_dev
+
+     1.需要在class的目录下创建类名（目录的名字）
+	    class_create
+		
+		85 #define class_create(owner, name)       \
+ 486 ({                      \
+ 487     static struct lock_class_key __key; \
+ 488     __class_create(owner, name, &__key);    \                                                                                   
+ 489 })   
+238 struct class *__class_create(struct module *owner, const char *name,                                                             
+239                  struct lock_class_key *key)
+ 
+      struct class  * cls;
+	  
+	  cls  = class_create(THIS_MODULE,“fs4412”);
+	 2.在类名下创建设备节点
+	   device_create
+	    1689 struct device *device_create(struct class *class, struct device *parent,                                                        
+1690                  dev_t devt, void *drvdata, const char *fmt, ...)
+
+       参数：struct  class  *  class: 创建类的返回值
+	        struct device *parent:NULL
+	        dev_t  devt: 设备号
+			void  *  drvdata: 传的数据  NULL
+			char  *  fmt:创建设备的名字
+			
+			device_create(cls,NULL，devno,NULL,"led");
+			
+			
+	1761 void device_destroy(struct class *class, dev_t devt)  
+        设备的销毁
+		
+		销毁类
+	   void class_destroy(struct class *cls)    
+
+【3】次设备号的识别
+    iminor
+     
+	   
+		
+		
+		
+			
+
+	 
+	 
+
+  
+	
+   
+   
+   
+   
+   

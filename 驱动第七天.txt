@@ -1,0 +1,159 @@
+【1】IIC
+   1.IIC在通信有三种信号：
+   
+   起始信号：时钟线为高电平，数据线由高到低电平的跳变，表示发送起始信号
+   结束信号：时钟线为高电平，数据线由低到高电平的跳变，表示结束信号
+   响应信号（应答信号）：在第九个时钟周期从机将数据线拉低，表示从机给主
+                         机发送一个应答信号，主机只需要判断第九个时钟周
+						 期，数据线是高电平还是低电平，如果是低电平，表
+						 示从机给主机发送应答信号。
+iic总线传输数据?
+    主机先发送起始信号，接下来发送七位的从机地址+1位的读写位，从机需要
+	给主机发送应答信号。
+	
+	时钟线为高电平期间保持稳定，低电平期间发生变化。
+	在第八个时钟周期，数据线为低电平表示写，数据线为高
+	电平表示读。
+  
+ 2.控制器驱动
+ vi  drivers/i2c/busses/i2c-s3c2410.c  
+    arm9/arm11/cortex_a8/exynos4412控制器驱动
+	1072 static int s3c24xx_i2c_probe(struct platform_device *pdev)
+	 struct s3c24xx_i2c *i2c;
+	    strlcpy(i2c->adap.name, "s3c2410-i2c", sizeof(i2c->adap.name));
+1106     i2c->adap.owner   = THIS_MODULE;
+1107     i2c->adap.algo    = &s3c24xx_i2c_algorithm;   
+              787 static const struct i2c_algorithm s3c24xx_i2c_algorithm = {
+ 788     .master_xfer        = s3c24xx_i2c_xfer, 
+                master_xfer操作从机设备
+1108     i2c->adap.retries = 2;
+1109     i2c->adap.class   = I2C_CLASS_HWMON | I2C_CLASS_SPD;
+1110     i2c->tx_setup     = 50;
+ ret = i2c_add_numbered_adapter(&i2c->adap);
+            __i2c_add_numbered_adapter(adap);
+			    i2c_register_adapter(adap); 
+				      i2c_register_adapter(adapter); 
+					      i2c_scan_static_board_info(adap);
+						       i2c_new_device(adapter,
+ 974                                         &devinfo->board_info))  
+                                               656 struct i2c_client *
+ 657 i2c_new_device(struct i2c_adapter *adap, struct i2c_board_info const *info)
+主要作用将i2c_board_info 转化成i2c_client
+ 
+ 3.添加控制器驱动
+      i2c-s3c2410.c
+ 4.添加硬件信息
+     如果内核中没有设备树，在平台代码下添加mpu6050的驱动
+	 cortex_a8:
+	 
+	 arm/arm/mach-s5pc100/mach-smdkc100.c
+	  6 static struct i2c_board_info i2c_devs1[] __initdata = {
+	  {.type  = "mpu6050",
+	    .addr  = 0x68,},
+		
+  如果内核中有设备树，将mpu6050的硬件信息添加到设备树中
+参考文档：
+     linux-3.14-fs4412/Documentation/devicetree/bindings/i2c# vi  i2c-s3c2410.txt
+   
+		    i2c@13870000 {
+ 39         compatible = "samsung,s3c2440-i2c";
+ 40         reg = <0x13870000 0x100>;
+ 41         interrupts = <345>;
+ 42         samsung,i2c-sda-delay = <100>;
+ 43         samsung,i2c-max-bus-freq = <100000>;
+ 44      
+ 45         gpios = <&gpd1 2 0 /* SDA */
+ 46              &gpd1 3 0 /* SCL */>;
+ 47
+ 49         pinctrl-0 = <&i2c3_bus>;
+ 50         pinctrl-names = "default";
+ 51       
+ 54 
+ 55         wm8994@1a {
+ 56             compatible = "wlf,wm8994";
+ 57             reg = <0x1a>;                                                                                                        
+ 58         };
+ 59     };
+ 
+ 
+    i2c@13860000 {
+249         #address-cells = <1>;
+250         #size-cells = <0>;
+251         samsung,i2c-sda-delay = <100>;
+252         samsung,i2c-max-bus-freq = <20000>;
+253         pinctrl-0 = <&i2c0_bus>;
+254         pinctrl-names = "default";
+255         status = "okay";
+256 
+257         s5m8767_pmic@66 {
+258             compatible = "samsung,s5m8767-pmic";
+259             reg = <0x66>;
+
+
+		
+	  i2c@138B0000 {
+599         samsung,i2c-sda-delay = <100>;
+600         samsung,i2c-max-bus-freq = <100000>;
+601         pinctrl-0 = <&i2c5_bus>;
+602         pinctrl-names = "default";
+603         status = "okay";
+604 
+605         mpu6050_3_axis@68 {                                                                                                      
+606             compatible = "invensense,mpu6050";
+607             reg = <0x68>;
+608         };
+609     };
+
+检查内核是否支持i2c5
+/sys/class/i2c-adapter 
+操作从机设备
+int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num) 
+
+
+有多少个起始位就有多少个消息，消息的长度以字节的形式表示
+
+i2c_msg 
+  68 struct i2c_msg {
+ 69     __u16 addr; /* slave address            */                                                                                   
+ 70     __u16 flags;
+ 71 #define I2C_M_TEN       0x0010  /* this is a ten bit chip address */
+ 72 #define I2C_M_RD        0x0001  /* read data, from slave to master */
+ 73 #define I2C_M_STOP      0x8000  /* if I2C_FUNC_PROTOCOL_MANGLING */
+ 74 #define I2C_M_NOSTART       0x4000  /* if I2C_FUNC_NOSTART */
+ 75 #define I2C_M_REV_DIR_ADDR  0x2000  /* if I2C_FUNC_PROTOCOL_MANGLING */
+ 76 #define I2C_M_IGNORE_NAK    0x1000  /* if I2C_FUNC_PROTOCOL_MANGLING */
+ 77 #define I2C_M_NO_RD_ACK     0x0800  /* if I2C_FUNC_PROTOCOL_MANGLING */
+ 78 #define I2C_M_RECV_LEN      0x0400  /* length will be first received byte */
+ 79     __u16 len;      /* msg length               */
+ 80     __u8 *buf;      /* pointer to msg data          */
+ 81 };
+
+ struct  i2c_msg  msgs[]  = {
+ 
+ 
+   char buf[1] ={0};
+   char  buff[2];
+  {client->addr,0,1,buf},
+  {client->addr,1,2,buff},
+  
+ 
+ 
+ };
+ 
+ struct  i2c_msg  msgs[]  = {
+   char buf[2] = {reg,val};
+ {client->addr,0,2,buf},
+ {client->addr,0,1,buff}, reg
+ {client->addr,1,1,bufff},  加速度和角速度的数据
+ 
+ };
+	  
+	
+	
+	
+	
+						 
+						 
+   
+   
+  
